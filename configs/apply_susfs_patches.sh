@@ -129,28 +129,20 @@ fix_sukisu_init_c() {
   # dispatcher-only call and leaves the manager UI as not-installed under seccomp.
   #
   # SUSFS enable-patch hunks often reject on SukiSU init.c, leaving manager_*()
-  # calls while the matching include/prototype is not visible to the compiler
-  # (undeclared function -> build fail). Force header + prototypes when needed.
+  # calls while include/prototype is not visible (undeclared function -> build fail).
+  # Prefer file prepend over sed a-text (newline handling differs across sed builds).
   if [ -f "$root_dir/hook/syscall_hook_manager.h" ]; then
     if ! grep -qE 'include[[:space:]]+"hook/syscall_hook_manager\.h"' "$target"; then
-      if grep -q '#include "ksu.h"' "$target"; then
-        sed -i '/#include "ksu.h"/a #include "hook/syscall_hook_manager.h"' "$target"
-      elif grep -q '#include "hook/syscall_hook.h"' "$target"; then
-        sed -i '/#include "hook\/syscall_hook.h"/a #include "hook/syscall_hook_manager.h"' "$target"
-      else
-        sed -i '1i#include "hook/syscall_hook_manager.h"' "$target"
-      fi
+      _mgr_tmp="$(mktemp)"
+      { echo '#include "hook/syscall_hook_manager.h"'; cat "$target"; } > "$_mgr_tmp"
+      mv "$_mgr_tmp" "$target"
       echo "  (ensured #include \"hook/syscall_hook_manager.h\")"
     fi
   fi
-  if ! grep -qE '^[[:space:]]*void[[:space:]]+ksu_syscall_hook_manager_init[[:space:]]*\([[:space:]]*void[[:space:]]*\)[[:space:]]*;' "$target"; then
-    if grep -qE 'include[[:space:]]+"hook/syscall_hook_manager\.h"' "$target"; then
-      sed -i '/#include "hook\/syscall_hook_manager.h"/a void ksu_syscall_hook_manager_init(void);\nvoid ksu_syscall_hook_manager_exit(void);' "$target"
-    elif grep -q '#include "ksu.h"' "$target"; then
-      sed -i '/#include "ksu.h"/a void ksu_syscall_hook_manager_init(void);\nvoid ksu_syscall_hook_manager_exit(void);' "$target"
-    else
-      sed -i '1ivoid ksu_syscall_hook_manager_init(void);\nvoid ksu_syscall_hook_manager_exit(void);' "$target"
-    fi
+  if ! grep -qE 'ksu_syscall_hook_manager_init[[:space:]]*\([[:space:]]*void[[:space:]]*\)[[:space:]]*;' "$target"; then
+    _mgr_tmp="$(mktemp)"
+    { echo 'void ksu_syscall_hook_manager_init(void); void ksu_syscall_hook_manager_exit(void);'; cat "$target"; } > "$_mgr_tmp"
+    mv "$_mgr_tmp" "$target"
     echo "  (injected manager_init/exit prototypes)"
   fi
   if ! grep -qE 'ksu_syscall_hook_manager_init[[:space:]]*\(' "$target"; then
@@ -163,7 +155,7 @@ fix_sukisu_init_c() {
     exit 1
   fi
 
-  echo "鉁?Fixed $target"
+  echo "[OK] Fixed $target"
 }
 
 ensure_susfs_init_call() {
@@ -199,7 +191,7 @@ echo "::error::susfs_init() was not inserted into $target"
 exit 1
   fi
 
-  echo "鉁?susfs_init() is present in $target"
+  echo "[OK] susfs_init() is present in $target"
 }
 
 # SUSFS v2.2.0: the SUSFS KernelSU-enable patch switches setuid/sucompat handling
@@ -241,7 +233,7 @@ ensure_sukisu_inline_hook_init() {
   _ensure_after_supercalls ksu_setuid_hook_init
   _ensure_after_supercalls ksu_sucompat_init
 
-  echo "鉁?inline hook init calls ensured in $target"
+  echo "[OK] inline hook init calls ensured in $target"
 }
 
 fix_sukisu_boot_event_c() {
@@ -281,7 +273,7 @@ echo "::error::ksu_stop_input_hook_runtime still remains in $target"
 exit 1
   fi
 
-  echo "鉁?Fixed $target"
+  echo "[OK] Fixed $target"
 }
 
 fix_sukisu_ksud_integration_c() {
@@ -293,7 +285,7 @@ fix_sukisu_ksud_integration_c() {
   neutralize_ksu_late_loaded "$target"
 
   if ! grep -q 'ksu_no_custom_rc' "$target"; then
-echo "鈩癸笍 ksu_no_custom_rc not referenced in $target"
+echo "[info] ksu_no_custom_rc not referenced in $target"
 return 0
   fi
 
@@ -370,7 +362,7 @@ echo "::error::Pointer-bool warning patterns still remain in $target"
 exit 1
   fi
 
-  echo "鉁?Fixed $target"
+  echo "[OK] Fixed $target"
 }
 
 fix_sukisu_app_profile_c() {
@@ -451,7 +443,7 @@ echo "::error::ksu_set_task_tracepoint_flag() still remains in $target"
 exit 1
   fi
 
-  echo "鉁?Fixed $target"
+  echo "[OK] Fixed $target"
 }
 
 fix_sukisu_dispatch_c() {
@@ -491,7 +483,7 @@ if ! grep -q '#include <linux/susfs.h>' "$target"; then
 fi
   fi
 
-  echo "鉁?Fixed $target"
+  echo "[OK] Fixed $target"
 }
 
 fix_sukisu_sucompat_api() {
@@ -1030,7 +1022,7 @@ elif [ "$has_new_faccess" = true ]; then
 fi
   fi
 
-  echo "鉁?Fixed $target"
+  echo "[OK] Fixed $target"
 }
 
 fix_sukisu_linker_symbols() {
