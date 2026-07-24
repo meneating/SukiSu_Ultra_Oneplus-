@@ -1025,6 +1025,35 @@ fi
   echo "[OK] Fixed $target"
 }
 
+ensure_manager_hook_objs() {
+  # SUSFS enable patch drops syscall_hook_manager.o from Kbuild while SukiSU init.c
+  # hunks often keep manager_init calls. Restore required objects for linking.
+  echo "Ensuring manager hook objects remain in Kbuild..."
+  local objs="hook/syscall_hook_manager.o hook/syscall_event_bridge.o hook/tp_marker.o hook/arm64/syscall_hook.o hook/arm64/patch_memory.o infra/symbol_resolver.o"
+  for kbuild in \
+"$KSU_FOLDER/kernel/Kbuild" \
+"$COMMON_KERNEL_FOLDER/drivers/kernelsu/Kbuild"; do
+    [ -f "$kbuild" ] || continue
+    local root
+    root="$(dirname "$kbuild")"
+    for obj in $objs; do
+      local src="${obj%.o}.c"
+      [ -f "$root/$src" ] || continue
+      if ! grep -qF "$obj" "$kbuild"; then
+        echo "kernelsu-objs += $obj" >> "$kbuild"
+        echo "  (restored $obj in $kbuild)"
+      fi
+    done
+    local initc="$root/core/init.c"
+    if [ -f "$initc" ] && grep -qE 'ksu_syscall_hook_manager_init[[:space:]]*\(' "$initc"; then
+      if ! grep -qF "hook/syscall_hook_manager.o" "$kbuild"; then
+        echo "::error::manager_init called but hook/syscall_hook_manager.o missing from $kbuild"
+        exit 1
+      fi
+    fi
+  done
+}
+
 fix_sukisu_linker_symbols() {
   echo "Applying SukiSU linker-symbol compatibility cleanup..."
 
@@ -1202,7 +1231,7 @@ fix_sukisu_sucompat_api         "kernel"
 fix_sukisu_forced_execveat_link_symbols "kernel"
 fix_sukisu_syscall_event_bridge "kernel/hook/syscall_event_bridge.c"
 fix_sukisu_linker_symbols
-
+ensure_manager_hook_objs
 # =============================================================================
 # Patch common/drivers/kernelsu mirror
 # =============================================================================
@@ -1253,7 +1282,7 @@ fix_sukisu_sucompat_api         "drivers/kernelsu"
 fix_sukisu_forced_execveat_link_symbols "drivers/kernelsu"
 fix_sukisu_syscall_event_bridge "drivers/kernelsu/hook/syscall_event_bridge.c"
 fix_sukisu_linker_symbols
-
+ensure_manager_hook_objs
 mkdir -p drivers/kernelsu/kpm/uapi include/uapi
 
 cp "$KERNEL_PLATFORM_FOLDER/KernelSU/uapi/"*.h drivers/kernelsu/kpm/uapi/ 2>/dev/null || true
@@ -1547,7 +1576,7 @@ fix_sukisu_dispatch_c           "drivers/kernelsu/supercall/dispatch.c"
 fix_sukisu_sucompat_api         "drivers/kernelsu"
 fix_sukisu_syscall_event_bridge "drivers/kernelsu/hook/syscall_event_bridge.c"
 fix_sukisu_linker_symbols
-
+ensure_manager_hook_objs
 # =============================================================================
 # Final safety sweep
 # =============================================================================
