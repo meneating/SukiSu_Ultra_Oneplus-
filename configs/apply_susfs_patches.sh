@@ -105,11 +105,6 @@ fix_sukisu_init_c() {
 
   sed -i '/ksu_lsm_hook_init[[:space:]]*();/d' "$target" || true
 
-  sed -i \
--e 's/\bksu_syscall_hook_manager_init[[:space:]]*(/ksu_syscall_hook_init(/g' \
--e 's/\bksu_syscall_hook_manager_exit[[:space:]]*(/ksu_syscall_hook_exit(/g' \
-"$target" || true
-
   neutralize_ksu_late_loaded "$target"
 
   local root_dir
@@ -118,20 +113,28 @@ fix_sukisu_init_c() {
   # The definition is gone, so drop the now-dangling extern in the tree's ksu.h too
   # (covers the KSU tree kernel/include/ksu.h and the mirror drivers/kernelsu/include/ksu.h).
   if [ -f "$root_dir/include/ksu.h" ]; then
-sed -i '/extern[[:space:]]\+bool[[:space:]]\+ksu_late_loaded[[:space:]]*;/d' "$root_dir/include/ksu.h" || true
+    sed -i '/extern[[:space:]]\+bool[[:space:]]\+ksu_late_loaded[[:space:]]*;/d' "$root_dir/include/ksu.h" || true
   fi
 
   if ! grep -Rqs '^[[:space:]]*\(void\|int\)[[:space:]]\+ksu_syscall_hook_init[[:space:]]*(' "$root_dir" --include='*.c' 2>/dev/null; then
-sed -i '/ksu_syscall_hook_init[[:space:]]*();/d' "$target" || true
+    sed -i '/ksu_syscall_hook_init[[:space:]]*();/d' "$target" || true
   fi
 
   if ! grep -Rqs '^[[:space:]]*\(void\|int\)[[:space:]]\+ksu_syscall_hook_exit[[:space:]]*(' "$root_dir" --include='*.c' 2>/dev/null; then
-sed -i '/ksu_syscall_hook_exit[[:space:]]*();/d' "$target" || true
+    sed -i '/ksu_syscall_hook_exit[[:space:]]*();/d' "$target" || true
   fi
 
-  if grep -nE 'ksu_lsm_hook_init|ksu_late_loaded|ksu_syscall_hook_manager_init|ksu_syscall_hook_manager_exit' "$target"; then
-echo "::error::Legacy SukiSU-incompatible symbols remain in $target"
-exit 1
+  # Keep ksu_syscall_hook_manager_{init,exit}: they register setresuid/execve hooks.
+  # Renaming them to ksu_syscall_hook_* collapses manager wiring into a second
+  # dispatcher-only call and leaves the manager UI as not-installed under seccomp.
+  if ! grep -qE 'ksu_syscall_hook_manager_init[[:space:]]*\(' "$target"; then
+    echo "::error::Missing ksu_syscall_hook_manager_init() in $target (manager hooks will not register)"
+    exit 1
+  fi
+
+  if grep -nE 'ksu_lsm_hook_init|ksu_late_loaded' "$target"; then
+    echo "::error::Legacy SukiSU-incompatible symbols remain in $target"
+    exit 1
   fi
 
   echo "✅ Fixed $target"
