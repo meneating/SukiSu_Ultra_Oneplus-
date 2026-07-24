@@ -124,30 +124,38 @@ fix_sukisu_init_c() {
     sed -i '/ksu_syscall_hook_exit[[:space:]]*();/d' "$target" || true
   fi
 
-  # Keep ksu_syscall_hook_manager_{init,exit}: they register setresuid/execve hooks.
-  # Renaming them to ksu_syscall_hook_* collapses manager wiring into a second
-  # dispatcher-only call and leaves the manager UI as not-installed under seccomp.
-  #
-  # SUSFS enable-patch hunks often reject on SukiSU init.c, leaving manager_*()
-  # calls while include/prototype is not visible (undeclared function -> build fail).
-  # Prefer file prepend over sed a-text (newline handling differs across sed builds).
-  if [ -f "$root_dir/hook/syscall_hook_manager.h" ]; then
-    if ! grep -qE 'include[[:space:]]+"hook/syscall_hook_manager\.h"' "$target"; then
-      _mgr_tmp="$(mktemp)"
-      { echo '#include "hook/syscall_hook_manager.h"'; cat "$target"; } > "$_mgr_tmp"
-      mv "$_mgr_tmp" "$target"
-      echo "  (ensured #include \"hook/syscall_hook_manager.h\")"
+  # SUSFS enable-patch intentionally drops hook/syscall_hook_manager.o and rewires
+  # init to ksu_setuid_hook_init() for setresuid/manager install. On SukiSU Ultra,
+  # some init.c hunks reject and leave manager_init() calls, which then fail link.
+  # Prefer the SUSFS setuid path: drop orphan manager_init/exit calls when the
+  # manager object is not part of the build, and require setuid_hook_init instead.
+  local has_mgr_obj=0
+  if [ -f "$root_dir/Kbuild" ] && grep -qF 'hook/syscall_hook_manager.o' "$root_dir/Kbuild"; then
+    has_mgr_obj=1
+  fi
+  if [ "$has_mgr_obj" -eq 0 ]; then
+    sed -i '/ksu_syscall_hook_manager_init[[:space:]]*();/d' "$target" || true
+    sed -i '/ksu_syscall_hook_manager_exit[[:space:]]*();/d' "$target" || true
+    echo "  (dropped manager_init/exit calls; SUSFS uses setuid_hook path)"
+  else
+    if [ -f "$root_dir/hook/syscall_hook_manager.h" ]; then
+      if ! grep -qE 'include[[:space:]]+"hook/syscall_hook_manager\.h"' "$target"; then
+        _mgr_tmp="$(mktemp)"
+        { echo '#include "hook/syscall_hook_manager.h"'; cat "$target"; } > "$_mgr_tmp"
+        mv "$_mgr_tmp" "$target"
+        echo "  (ensured #include \"hook/syscall_hook_manager.h\")"
+      fi
     fi
-  fi
-  if ! grep -qE 'ksu_syscall_hook_manager_init[[:space:]]*\([[:space:]]*void[[:space:]]*\)[[:space:]]*;' "$target"; then
-    _mgr_tmp="$(mktemp)"
-    { echo 'void ksu_syscall_hook_manager_init(void); void ksu_syscall_hook_manager_exit(void);'; cat "$target"; } > "$_mgr_tmp"
-    mv "$_mgr_tmp" "$target"
-    echo "  (injected manager_init/exit prototypes)"
-  fi
-  if ! grep -qE 'ksu_syscall_hook_manager_init[[:space:]]*\(' "$target"; then
-    echo "::error::Missing ksu_syscall_hook_manager_init() in $target (manager hooks will not register)"
-    exit 1
+    if ! grep -qE 'ksu_syscall_hook_manager_init[[:space:]]*\([[:space:]]*void[[:space:]]*\)[[:space:]]*;' "$target"; then
+      _mgr_tmp="$(mktemp)"
+      { echo 'void ksu_syscall_hook_manager_init(void); void ksu_syscall_hook_manager_exit(void);'; cat "$target"; } > "$_mgr_tmp"
+      mv "$_mgr_tmp" "$target"
+      echo "  (injected manager_init/exit prototypes)"
+    fi
+    if ! grep -qE 'ksu_syscall_hook_manager_init[[:space:]]*\(' "$target"; then
+      echo "::error::Missing ksu_syscall_hook_manager_init() in $target (manager hooks will not register)"
+      exit 1
+    fi
   fi
 
   if grep -nE 'ksu_lsm_hook_init|ksu_late_loaded' "$target"; then
@@ -1026,32 +1034,11 @@ fi
 }
 
 ensure_manager_hook_objs() {
-  # SUSFS enable patch drops syscall_hook_manager.o from Kbuild while SukiSU init.c
-  # hunks often keep manager_init calls. Restore required objects for linking.
-  echo "Ensuring manager hook objects remain in Kbuild..."
-  local objs="hook/syscall_hook_manager.o hook/syscall_event_bridge.o hook/tp_marker.o hook/arm64/syscall_hook.o hook/arm64/patch_memory.o infra/symbol_resolver.o"
-  for kbuild in \
-"$KSU_FOLDER/kernel/Kbuild" \
-"$COMMON_KERNEL_FOLDER/drivers/kernelsu/Kbuild"; do
-    [ -f "$kbuild" ] || continue
-    local root
-    root="$(dirname "$kbuild")"
-    for obj in $objs; do
-      local src="${obj%.o}.c"
-      [ -f "$root/$src" ] || continue
-      if ! grep -qF "$obj" "$kbuild"; then
-        echo "kernelsu-objs += $obj" >> "$kbuild"
-        echo "  (restored $obj in $kbuild)"
-      fi
-    done
-    local initc="$root/core/init.c"
-    if [ -f "$initc" ] && grep -qE 'ksu_syscall_hook_manager_init[[:space:]]*\(' "$initc"; then
-      if ! grep -qF "hook/syscall_hook_manager.o" "$kbuild"; then
-        echo "::error::manager_init called but hook/syscall_hook_manager.o missing from $kbuild"
-        exit 1
-      fi
-    fi
-  done
+  # Intentionally a no-op: restoring SUSFS-dropped manager objs breaks compile
+  # against SUSFS-patched setuid/sucompat APIs. manager_init calls are dropped
+  # in fix_sukisu_init_c when the obj is absent.
+  echo "Skipping manager hook obj restore (SUSFS setuid path)
+"
 }
 
 fix_sukisu_linker_symbols() {
