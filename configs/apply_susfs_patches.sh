@@ -127,6 +127,32 @@ fix_sukisu_init_c() {
   # Keep ksu_syscall_hook_manager_{init,exit}: they register setresuid/execve hooks.
   # Renaming them to ksu_syscall_hook_* collapses manager wiring into a second
   # dispatcher-only call and leaves the manager UI as not-installed under seccomp.
+  #
+  # SUSFS enable-patch hunks often reject on SukiSU init.c, leaving manager_*()
+  # calls while the matching include/prototype is not visible to the compiler
+  # (undeclared function -> build fail). Force header + prototypes when needed.
+  if [ -f "$root_dir/hook/syscall_hook_manager.h" ]; then
+    if ! grep -qE 'include[[:space:]]+"hook/syscall_hook_manager\.h"' "$target"; then
+      if grep -q '#include "ksu.h"' "$target"; then
+        sed -i '/#include "ksu.h"/a #include "hook/syscall_hook_manager.h"' "$target"
+      elif grep -q '#include "hook/syscall_hook.h"' "$target"; then
+        sed -i '/#include "hook\/syscall_hook.h"/a #include "hook/syscall_hook_manager.h"' "$target"
+      else
+        sed -i '1i#include "hook/syscall_hook_manager.h"' "$target"
+      fi
+      echo "  (ensured #include \"hook/syscall_hook_manager.h\")"
+    fi
+  fi
+  if ! grep -qE '^[[:space:]]*void[[:space:]]+ksu_syscall_hook_manager_init[[:space:]]*\([[:space:]]*void[[:space:]]*\)[[:space:]]*;' "$target"; then
+    if grep -qE 'include[[:space:]]+"hook/syscall_hook_manager\.h"' "$target"; then
+      sed -i '/#include "hook\/syscall_hook_manager.h"/a void ksu_syscall_hook_manager_init(void);\nvoid ksu_syscall_hook_manager_exit(void);' "$target"
+    elif grep -q '#include "ksu.h"' "$target"; then
+      sed -i '/#include "ksu.h"/a void ksu_syscall_hook_manager_init(void);\nvoid ksu_syscall_hook_manager_exit(void);' "$target"
+    else
+      sed -i '1ivoid ksu_syscall_hook_manager_init(void);\nvoid ksu_syscall_hook_manager_exit(void);' "$target"
+    fi
+    echo "  (injected manager_init/exit prototypes)"
+  fi
   if ! grep -qE 'ksu_syscall_hook_manager_init[[:space:]]*\(' "$target"; then
     echo "::error::Missing ksu_syscall_hook_manager_init() in $target (manager hooks will not register)"
     exit 1
@@ -137,7 +163,7 @@ fix_sukisu_init_c() {
     exit 1
   fi
 
-  echo "✅ Fixed $target"
+  echo "鉁?Fixed $target"
 }
 
 ensure_susfs_init_call() {
@@ -173,7 +199,7 @@ echo "::error::susfs_init() was not inserted into $target"
 exit 1
   fi
 
-  echo "✅ susfs_init() is present in $target"
+  echo "鉁?susfs_init() is present in $target"
 }
 
 # SUSFS v2.2.0: the SUSFS KernelSU-enable patch switches setuid/sucompat handling
@@ -215,7 +241,7 @@ ensure_sukisu_inline_hook_init() {
   _ensure_after_supercalls ksu_setuid_hook_init
   _ensure_after_supercalls ksu_sucompat_init
 
-  echo "✅ inline hook init calls ensured in $target"
+  echo "鉁?inline hook init calls ensured in $target"
 }
 
 fix_sukisu_boot_event_c() {
@@ -255,7 +281,7 @@ echo "::error::ksu_stop_input_hook_runtime still remains in $target"
 exit 1
   fi
 
-  echo "✅ Fixed $target"
+  echo "鉁?Fixed $target"
 }
 
 fix_sukisu_ksud_integration_c() {
@@ -267,12 +293,12 @@ fix_sukisu_ksud_integration_c() {
   neutralize_ksu_late_loaded "$target"
 
   if ! grep -q 'ksu_no_custom_rc' "$target"; then
-echo "ℹ️ ksu_no_custom_rc not referenced in $target"
+echo "鈩癸笍 ksu_no_custom_rc not referenced in $target"
 return 0
   fi
 
   if grep -qE '^[[:space:]]*(extern[[:space:]]+)?bool[[:space:]]+ksu_no_custom_rc\b|^[[:space:]]*static[[:space:]]+bool[[:space:]]+ksu_no_custom_rc\b' "$target"; then
-echo "✅ ksu_no_custom_rc already declared in $target"
+echo "鉁?ksu_no_custom_rc already declared in $target"
 return 0
   fi
 
@@ -283,10 +309,10 @@ return 0
 
   if grep -RqsE '^[[:space:]]*bool[[:space:]]+ksu_no_custom_rc\b|^[[:space:]]*static[[:space:]]+bool[[:space:]]+ksu_no_custom_rc\b' "$root_dir" --include='*.c' --include='*.h' 2>/dev/null; then
 sed -i '/#include <linux\/types.h>/a extern bool ksu_no_custom_rc;' "$target"
-echo "✅ Added extern bool ksu_no_custom_rc to $target"
+echo "鉁?Added extern bool ksu_no_custom_rc to $target"
   else
 sed -i '/#include <linux\/types.h>/a static bool ksu_no_custom_rc = false;' "$target"
-echo "✅ Added local static bool ksu_no_custom_rc = false to $target"
+echo "鉁?Added local static bool ksu_no_custom_rc = false to $target"
   fi
 }
 
@@ -344,7 +370,7 @@ echo "::error::Pointer-bool warning patterns still remain in $target"
 exit 1
   fi
 
-  echo "✅ Fixed $target"
+  echo "鉁?Fixed $target"
 }
 
 fix_sukisu_app_profile_c() {
@@ -425,7 +451,7 @@ echo "::error::ksu_set_task_tracepoint_flag() still remains in $target"
 exit 1
   fi
 
-  echo "✅ Fixed $target"
+  echo "鉁?Fixed $target"
 }
 
 fix_sukisu_dispatch_c() {
@@ -465,7 +491,7 @@ if ! grep -q '#include <linux/susfs.h>' "$target"; then
 fi
   fi
 
-  echo "✅ Fixed $target"
+  echo "鉁?Fixed $target"
 }
 
 fix_sukisu_sucompat_api() {
@@ -477,8 +503,8 @@ fix_sukisu_sucompat_api() {
 
   echo "Fixing SukiSU sucompat API in: $base"
 
-  [ -f "$c" ] || { echo "ℹ️ sucompat.c not found in $base, skipping"; return 0; }
-  [ -f "$h" ] || { echo "ℹ️ sucompat.h not found in $base, skipping"; return 0; }
+  [ -f "$c" ] || { echo "鈩癸笍 sucompat.c not found in $base, skipping"; return 0; }
+  [ -f "$h" ] || { echo "鈩癸笍 sucompat.h not found in $base, skipping"; return 0; }
 
   grep -q '#include <linux/jump_label.h>' "$c" || sed -i '1i#include <linux/jump_label.h>' "$c"
   grep -q '#include <linux/version.h>' "$c" || sed -i '1i#include <linux/version.h>' "$c"
@@ -672,7 +698,7 @@ exit 1
     perl -0pi -e 's/(const\s+char\s+__user\s+\*const\s+__user\s+\*argv_user\s*=\s*\(const\s+char\s+__user\s+\*const\s+__user\s+\*\)PT_REGS_PARM2\(regs\);\n)(?!\s*\(void\)argv_user;)/$1    (void)argv_user;\n/g' "$_sucompat_cleanup_c" 2>/dev/null || true
   fi
 
-  echo "✅ sucompat API fixed in: $base"
+  echo "鉁?sucompat API fixed in: $base"
 }
 
 
@@ -913,7 +939,7 @@ PY
 
   if [ -f "$ksud_integration_c" ] && grep -q 'ksu_handle_execveat_init[[:space:]]*(' "$ksud_integration_c"; then
 # The definition may live in ksud_integration.c (older trees) OR feature/sucompat.c
-# (SUSFS v2.2.0). Accept either — only fail if it's defined nowhere in the tree.
+# (SUSFS v2.2.0). Accept either 鈥?only fail if it's defined nowhere in the tree.
 if ! grep -RqsE '^[[:space:]]*int[[:space:]]+ksu_handle_execveat_init[[:space:]]*\(' "$base" --include='*.c'; then
   echo "::error::ksu_handle_execveat_init referenced but no definition found under $base"
   grep -rn 'ksu_handle_execveat_init' "$base" --include='*.c' || true
@@ -921,7 +947,7 @@ if ! grep -RqsE '^[[:space:]]*int[[:space:]]+ksu_handle_execveat_init[[:space:]]
 fi
   fi
 
-  echo "✅ forced execveat/link symbol compatibility fixed in: $base"
+  echo "鉁?forced execveat/link symbol compatibility fixed in: $base"
 }
 
 
@@ -966,7 +992,7 @@ fix_sukisu_syscall_event_bridge() {
   fi
 
   [ -f "$sucompat_c" ] || {
-echo "ℹ️ sucompat.c not found for bridge base $base, skipping API migration"
+echo "鈩癸笍 sucompat.c not found for bridge base $base, skipping API migration"
 return 0
   }
 
@@ -1004,7 +1030,7 @@ elif [ "$has_new_faccess" = true ]; then
 fi
   fi
 
-  echo "✅ Fixed $target"
+  echo "鉁?Fixed $target"
 }
 
 fix_sukisu_linker_symbols() {
@@ -1070,7 +1096,7 @@ fi
 [ -f "$target" ] && mv "$target" "$target.disabled" || true
   done
 
-  echo "✅ SukiSU linker-symbol compatibility cleanup completed"
+  echo "鉁?SukiSU linker-symbol compatibility cleanup completed"
 }
 
 # =============================================================================
@@ -1260,7 +1286,7 @@ sed -i '/^obj-\$(CONFIG_KPM) += kpm\/compact.o/i\ccflags-\$(CONFIG_KPM) += -I$(s
   # --- android16-6.12 / 6.13 GKI include fix ---
   # Kbuild changed $(src) semantics on 6.12/6.13, so the manager's own
   # -I$(KSU_KERNEL_DIR)/include (KSU_KERNEL_DIR = $(srctree)/$(src)) fails to resolve
-  # for the symlinked drivers/kernelsu → 'util.h' (drivers/kernelsu/include/util.h) not
+  # for the symlinked drivers/kernelsu 鈫?'util.h' (drivers/kernelsu/include/util.h) not
   # found compiling su_mount_ns.c / sucompat.c / supercall.c. Anchor an include on the
   # Kbuild's own absolute directory ($(MDIR) = $(dir $(abspath $(lastword ...)))), which
   # is immune to the $(src) breakage. Builds fine on older kernels too (additive -I).
@@ -1559,7 +1585,7 @@ if grep -RqsE "\b(void|int)([[:space:]]+__[a-z_]+)*[[:space:]]+${_fn}[[:space:]]
     echo "::error::${_fn}() is defined but never called from drivers/kernelsu/core/init.c (v2.2.0 inline hook wiring missing)"
     exit 1
   fi
-  echo "✅ ${_fn}() call present in drivers/kernelsu/core/init.c"
+  echo "鉁?${_fn}() call present in drivers/kernelsu/core/init.c"
 fi
   done
 fi
@@ -1701,7 +1727,7 @@ if grep -q 'ksu_handle_faccessat_sucompat' "$bridge"; then
   fi
 fi
 
-echo "✅ syscall_event_bridge API validated: $bridge"
+echo "鉁?syscall_event_bridge API validated: $bridge"
   fi
 done
 
@@ -1710,7 +1736,7 @@ for sucompat_h in \
   "$COMMON_KERNEL_FOLDER/drivers/kernelsu/feature/sucompat.h"; do
   if [ -f "$sucompat_h" ]; then
 if grep -qE 'ksu_handle_faccessat_sucompat|ksu_handle_stat_sucompat' "$sucompat_h"; then
-  echo "ℹ️ Old sucompat declarations present in $sucompat_h; allowed when matching implementations exist"
+  echo "鈩癸笍 Old sucompat declarations present in $sucompat_h; allowed when matching implementations exist"
 fi
 
 if ! grep -qE 'ksu_handle_faccessat|ksu_handle_stat|ksu_handle_execve' "$sucompat_h"; then
@@ -1718,7 +1744,7 @@ if ! grep -qE 'ksu_handle_faccessat|ksu_handle_stat|ksu_handle_execve' "$sucompa
   exit 1
 fi
 
-echo "✅ sucompat.h API validated: $sucompat_h"
+echo "鉁?sucompat.h API validated: $sucompat_h"
   fi
 done
 
@@ -1788,11 +1814,11 @@ if grep -q 'ksu_handle_execveat_sucompat[[:space:]]*(' "$COMMON_KERNEL_FOLDER/fs
   fi
 fi
 
-echo "✅ sucompat.c API/static_key validated: $sucompat_c"
+echo "鉁?sucompat.c API/static_key validated: $sucompat_c"
   fi
 done
 
-# SUSFS defconfig — ONLY the CONFIG_KSU_SUSFS_* symbols that actually exist in the
+# SUSFS defconfig 鈥?ONLY the CONFIG_KSU_SUSFS_* symbols that actually exist in the
 # SUSFS version being built. v2.2.0 dropped the granular v1.5.x options
 # (HAS_MAGIC_MOUNT, AUTO_ADD_*, SUS_OVERLAYFS, TRY_UMOUNT, SUS_SU); writing those
 # does nothing (olddefconfig silently discards unknown symbols). The assert below
@@ -1817,7 +1843,7 @@ sed -i '/^CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=/d' \
 echo "CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=n" \
   >> "$COMMON_KERNEL_FOLDER/arch/arm64/configs/gki_defconfig"
 
-# SUSFS uname spoofing — opt-in via OP_SPOOF_UNAME (workflow input 'spoof_uname',
+# SUSFS uname spoofing 鈥?opt-in via OP_SPOOF_UNAME (workflow input 'spoof_uname',
 # default off, since some apps read uname). Written explicitly so the value is
 # deterministic regardless of what the base defconfig carried.
 sed -i '/^CONFIG_KSU_SUSFS_SPOOF_UNAME=/d' \
@@ -1842,17 +1868,17 @@ if [ -n "$_KSU_KCONFIG" ]; then
   while IFS= read -r _line; do
     _sym="${_line%%=*}"; _sym="${_sym#CONFIG_}"
     grep -qE "^[[:space:]]*config[[:space:]]+${_sym}([[:space:]]|\$)" "$_KSU_KCONFIG" && continue
-    echo "::warning::SUSFS defconfig sets CONFIG_${_sym} but no 'config ${_sym}' exists in $_KSU_KCONFIG — it would be dropped by olddefconfig"
+    echo "::warning::SUSFS defconfig sets CONFIG_${_sym} but no 'config ${_sym}' exists in $_KSU_KCONFIG 鈥?it would be dropped by olddefconfig"
     _susfs_missing=$((_susfs_missing + 1))
   done < <(grep -E '^CONFIG_KSU_SUSFS' "$_DEFCONFIG")
   if [ "$_susfs_missing" -gt 0 ]; then
-    echo "::error::$_susfs_missing SUSFS defconfig option(s) are not defined in the KSU Kconfig for this SUSFS version — update the SUSFS defconfig block in apply_susfs_patches.sh"
+    echo "::error::$_susfs_missing SUSFS defconfig option(s) are not defined in the KSU Kconfig for this SUSFS version 鈥?update the SUSFS defconfig block in apply_susfs_patches.sh"
     exit 1
   fi
-  echo "✅ All SUSFS defconfig options are defined in $_KSU_KCONFIG"
+  echo "鉁?All SUSFS defconfig options are defined in $_KSU_KCONFIG"
 else
   echo "::warning::Could not locate KSU Kconfig to verify SUSFS defconfig options"
 fi
 
-echo "✅ SUSFS patches applied successfully"
+echo "鉁?SUSFS patches applied successfully"
 echo "::endgroup::"
