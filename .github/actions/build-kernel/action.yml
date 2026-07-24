@@ -101,7 +101,7 @@ runs:
         echo "ACTION_REPO=$ACTION_REPO_VAL" >> $GITHUB_ENV
         echo "ACTION_REF=$ACTION_REF_VAL" >> $GITHUB_ENV
 
-    - name: 馃摜 Checkout Code
+    - name: 📥 Checkout Code
       uses: actions/checkout@v6
       with:
         repository: ${{ env.ACTION_REPO }}
@@ -128,7 +128,7 @@ runs:
           exit 1
         fi
 
-        echo "鉁?KSU type validated: ${{ inputs.ksu_type }}"
+        echo "✅ KSU type validated: ${{ inputs.ksu_type }}"
 
     - name: Validate Inputs
       shell: bash
@@ -326,7 +326,7 @@ runs:
           echo "::error::Input validation failed. See logs for details."
           exit 1
         else
-          echo "鉁?Input validation passed"
+          echo "✅ Input validation passed"
         fi
         echo "::endgroup::"
 
@@ -448,13 +448,13 @@ runs:
           fi
         } >> "$GITHUB_ENV"
         
-        echo "鉁?Detected: $ANDROID_VERSION-$FULL_VERSION"
+        echo "✅ Detected: $ANDROID_VERSION-$FULL_VERSION"
         if [ "${{ env.OP_SUSFS }}" = true ]; then
           echo "   SUSFS Branch: gki-$ANDROID_VERSION-$VERSION.$PATCHLEVEL"
         fi
         echo "::endgroup::"
 
-    - name: 馃彿锔?Set Build Identity (Hardcoded)
+    - name: 🏷️ Set Build Identity (Hardcoded)
       shell: bash
       run: |
         set -euo pipefail
@@ -467,7 +467,7 @@ runs:
         echo "BUILD_HOST=$BUILD_HOST" >> "$GITHUB_ENV"
         
         echo ""
-        echo "鉁?Build identity configured:"
+        echo "✅ Build identity configured:"
         echo "   User: $BUILD_USER"
         echo "   Host: $BUILD_HOST"
         echo "::endgroup::"
@@ -581,16 +581,16 @@ runs:
         
         if [ -z "$short" ]; then
           short="$("${CLANG_BIN}/clang" --version | sha256sum | cut -c1-8)"
-          echo "鈿狅笍 Could not extract clang-r version, using hash: $short"
+          echo "⚠️ Could not extract clang-r version, using hash: $short"
         else
-          echo "鉁?Clang version fingerprint: $short"
+          echo "✅ Clang version fingerprint: $short"
         fi
         
         echo "CLANG_VERSION_SHORT=$short" >> "$GITHUB_ENV"
         echo "$CLANG_BIN" >> $GITHUB_PATH
         echo "LIBCLANG_PATH=$CLANG_BIN/../lib" >> "$GITHUB_ENV"
         
-        echo "鉁?Detected Clang: $CLANG_VERSION"
+        echo "✅ Detected Clang: $CLANG_VERSION"
         echo "::endgroup::"
 
     - name: Check or Detect Rust & bindgen
@@ -646,7 +646,7 @@ runs:
         echo "RUSTC_VERSION=$RUSTC_VERSION" >> "$GITHUB_ENV"
         echo "RUSTC=$RUSTC_BIN/rustc" >> "$GITHUB_ENV"
         echo "$RUSTC_BIN" >> $GITHUB_PATH
-        echo "鉁?Detected RUSTC: $RUSTC_VERSION"
+        echo "✅ Detected RUSTC: $RUSTC_VERSION"
         
         if [ "$BINDGEN_FOUND" = true ]; then
           echo "BINDGEN_BIN_PATH=$BINDGEN_BIN" >> "$GITHUB_ENV"
@@ -654,7 +654,7 @@ runs:
           echo "BINDGEN_VERSION=$BINDGEN_VERSION" >> "$GITHUB_ENV"
           echo "$BINDGEN_BIN" >> $GITHUB_PATH
           echo "BINDGEN=$BINDGEN_BIN/bindgen" >> "$GITHUB_ENV"
-          echo "鉁?Detected BINDGEN: $BINDGEN_VERSION"
+          echo "✅ Detected BINDGEN: $BINDGEN_VERSION"
         fi
         
         echo "::endgroup::"
@@ -731,7 +731,7 @@ runs:
         ccache -p
         
         if [ -d "$CCACHE_DIR" ] && find "$CCACHE_DIR" -type f -print -quit 2>/dev/null | grep -q .; then
-          echo "鉁?Restored cache found"
+          echo "✅ Restored cache found"
           echo ""
           echo "Pre-build cache statistics:"
           ccache -s | head -n 20
@@ -739,7 +739,7 @@ runs:
           echo "Updating atime to achive cache eviction"
           find ${{ env.CCACHE_DIR }} -type f -exec touch -t $(date -d "1 day ago" +%Y%m%d%H%M) {} +
         else
-          echo "鈿狅笍 No existing cache - building from scratch"
+          echo "⚠️ No existing cache - building from scratch"
           echo "Cache will be populated for future builds"
         fi
         
@@ -747,12 +747,12 @@ runs:
         
         # Setup and check LTO Cache
         if [ -d "$LDCACHE_DIR" ] && find "$LDCACHE_DIR" -type f -print -quit 2>/dev/null | grep -q .; then
-          echo "鉁?Restored LTO LD cache found"
+          echo "✅ Restored LTO LD cache found"
           
           echo "Updating LTO cache atime for cache eviction..."
           find ${{ env.LDCACHE_DIR }} -type f -exec touch -t $(date -d "1 day ago" +%Y%m%d%H%M) {} +
         else
-          echo "鈿狅笍 No existing LTO cache - linker will generate new artifacts"
+          echo "⚠️ No existing LTO cache - linker will generate new artifacts"
         fi
         echo "::endgroup::"
 
@@ -782,11 +782,11 @@ runs:
           if [ -z "$SUSFS_INPUT" ]; then
             # use kernel-specific default
             SUSFS_BRANCH="${DEFAULT_SUSFS[$KERNEL_KEY]:-gki-android15-6.6}"
-            echo "鈩癸笍  Using default SUSFS branch for $KERNEL_KEY: $SUSFS_BRANCH"
+            echo "ℹ️  Using default SUSFS branch for $KERNEL_KEY: $SUSFS_BRANCH"
           else
             # 40-char hash or branch/commit passed directly
             SUSFS_BRANCH="$SUSFS_INPUT"
-            echo "馃敡 Using resolved SUSFS ref: $SUSFS_BRANCH"
+            echo "🔧 Using resolved SUSFS ref: $SUSFS_BRANCH"
           fi
         fi
         
@@ -830,13 +830,13 @@ runs:
               if aria2c -x16 -s16 -j16 -k1M --retry-wait=2 --max-tries=5 -d "/dev/shm" -o "$archive_name" --allow-overwrite=true "${aria2_headers[@]}" $aria_log_flags "$download_url"; then
                   mkdir -p "$repo_name"
                   if tar -I "pigz -p $nproc -b 256" -x --record-size=1M -f "$shm_path" -C "$repo_name" --strip-components=1 --no-same-owner; then
-                      echo "鉁?Success: $repo_name synced"
+                      echo "✅ Success: $repo_name synced"
                       rm -f "$shm_path"
                       return 0
                   fi
               fi
               
-              echo "鈿狅笍 Attempt $attempt failed, clearing RAM and retrying..."
+              echo "⚠️ Attempt $attempt failed, clearing RAM and retrying..."
               rm -rf "$repo_name" "$shm_path" 2>/dev/null
               sleep 5
               attempt=$((attempt + 1))
@@ -860,19 +860,19 @@ runs:
           fi
           
           while [ $attempt -le $max_attempts ]; do
-            echo "馃攧 Attempt $attempt/$max_attempts: cloning $url ($branch)${depth:+ [depth=$depth]}"
+            echo "🔄 Attempt $attempt/$max_attempts: cloning $url ($branch)${depth:+ [depth=$depth]}"
             
             git clone "${clone_args[@]}" "$url" "$dir" && {
-              echo "鉁?Success"
+              echo "✅ Success"
               return 0
             }
             
-            echo "鉂?Failed, cleaning up..."
+            echo "❌ Failed, cleaning up..."
             rm -rf "$dir" 2>/dev/null
             sleep $((attempt++ * 5))
           done
           
-          echo "馃挜 All attempts failed"
+          echo "💥 All attempts failed"
           return 1
         }
         
@@ -898,7 +898,7 @@ runs:
           echo "SUSFS_COMMIT_SHA=$SUSFS_BRANCH" >> $GITHUB_ENV
         fi
 
-        echo "鉁?Dependencies cloned"
+        echo "✅ Dependencies cloned"
         echo "::endgroup::"
 
     - name: Clean Up ABI Protected Exports
@@ -947,7 +947,7 @@ runs:
 
         KSU_INPUT="${{ inputs.ksu_branch_or_hash }}"
         if [ -z "$KSU_INPUT" ]; then
-          echo "No branch/hash provided 鈥?using default installer mode."
+          echo "No branch/hash provided — using default installer mode."
           bash "$SUKISU_SETUP_SCRIPT"
         else
           echo "Using SukiSU branch/hash: $KSU_INPUT"
@@ -1028,7 +1028,7 @@ runs:
           printf '%s\n' 'CONFIG_KSU=y'
           printf '%s\n' 'CONFIG_KPM=n'
           printf '%s\n' 'CONFIG_KSU_MULTI_MANAGER_SUPPORT=y'
-          # (CONFIG_KSU_FULL_NAME_FORMAT dropped 鈥?SukiSU-Ultra ignores it; the version
+          # (CONFIG_KSU_FULL_NAME_FORMAT dropped — SukiSU-Ultra ignores it; the version
           #  string is branded via KSU_VERSION_FULL in the Kbuild above.)
         } >> "$DEFCONFIG"
 
@@ -1037,7 +1037,7 @@ runs:
           echo "$KSU_VERSION"
         } >> "${ARTIFACTS_FOLDER}/${OP_MODEL}_${OP_OS_VERSION}.txt"
 
-        echo "鉁?SukiSU added (commit: ${KSU_COMMIT_SHA:0:8})"
+        echo "✅ SukiSU added (commit: ${KSU_COMMIT_SHA:0:8})"
         echo "::endgroup::"
 
     - name: Apply SUSFS Patches (SukiSU)
@@ -1112,7 +1112,7 @@ runs:
           ;;
         esac
         
-        echo "鉁?BBG LSM added"
+        echo "✅ BBG LSM added"
         echo "::endgroup::"
 
     - name: Apply KSU Hooks
@@ -1123,7 +1123,7 @@ runs:
         echo "::group::Apply KSU hooks"
         cd "$COMMON_KERNEL_FOLDER"
         patch -p1 < "$KERNEL_PATCHES_FOLDER/next/scope_min_manual_hooks_v1.4.patch"
-        echo "鉁?KSU hooks applied"
+        echo "✅ KSU hooks applied"
         echo "::endgroup::"
 
     - name: Apply Other Patches
@@ -1153,9 +1153,9 @@ runs:
           FENGCHI_PATCH="$FENGCHI_DIR/fengchi_${HMBIRD_MODEL}_${OP_OS_VERSION}.patch"
           dos2unix "$FENGCHI_PATCH"
           # The fengchi hunk that deletes OnePlus's CONFIG_SLIM_SCHED KABI block from task_struct
-          # (sched.h hunk #3) rejects on many trees 鈥?the block is absent, or present with divergent
+          # (sched.h hunk #3) rejects on many trees — the block is absent, or present with divergent
           # context (OP13/OP13T, 6.6.30, N30-SE). It is pure cleanup: HMBIRD (hunk #4) uses
-          # android_oem_data1 not KABI slots 1/2, and no fengchi hunk *adds* to slots 1/2 鈥?so always
+          # android_oem_data1 not KABI slots 1/2, and no fengchi hunk *adds* to slots 1/2 — so always
           # drop that one hunk and leave SLIM_SCHED (stock) in place. Ref: Numbersf/SCHED_PATCH ca7c5c0.
           FENGCHI_PATCH_FIXED="$(mktemp)"
           awk '
@@ -1176,7 +1176,7 @@ runs:
           echo "Hmbird not enabled, skipping fengchi patch"
         fi
         
-        echo "鉁?Other patches applied"
+        echo "✅ Other patches applied"
         echo "::endgroup::"
 
     - name: Apply Optimisation Patches
@@ -1240,7 +1240,7 @@ runs:
         echo "Patching use_unlikely_wrap_cpufreq.patch"
         patch -p1 --forward < "$KERNEL_PATCHES_FOLDER/common/use_unlikely_wrap_cpufreq.patch"
         
-        echo "鉁?Optimisation Patches applied"
+        echo "✅ Optimisation Patches applied"
         echo "::endgroup::"
 
     - name: Apply NTSync Patch
@@ -1283,7 +1283,7 @@ runs:
         cat >> "$COMMON_KERNEL_FOLDER/arch/arm64/configs/gki_defconfig" <<EOF
         CONFIG_NTSYNC=y
         EOF
-        echo "鉁?NTSync patch applied"
+        echo "✅ NTSync patch applied"
         echo "::endgroup::"
 
     - name: Apply Unicode Fix Patch
@@ -1324,7 +1324,7 @@ runs:
         CONFIG_TCP_CONG_BBR=y
         EOF
 
-        echo "鉁?BBR patches applied"
+        echo "✅ BBR patches applied"
         echo "::endgroup::"
 
     - name: Apply BBRv3
@@ -1400,7 +1400,7 @@ runs:
           echo "proc_dou8vec_minmax() already present - skipping sysctl backports"
         fi
 
-        echo "鉁?BBRv3 patches applied from Bouteillepleine/kernel_patches"
+        echo "✅ BBRv3 patches applied from Bouteillepleine/kernel_patches"
         echo "::endgroup::"
 
     - name: Enable Important Net Schedulers (qdisc)
@@ -1522,7 +1522,7 @@ runs:
           fi
         fi
         
-        echo "鉁?Droidspaces Support applied"
+        echo "✅ Droidspaces Support applied"
         echo "::endgroup::"
 
     - name: Add Build based configs
@@ -1614,7 +1614,7 @@ runs:
           for risky in "${RISKY_MODULES[@]}"; do
             if [ "$mod" = "$risky" ]; then
               is_risky=true
-              echo "鈿狅笍 WARNING: Blocked attempt to blacklist protected module: $mod"
+              echo "⚠️ WARNING: Blocked attempt to blacklist protected module: $mod"
               break
             fi
           done
@@ -1644,7 +1644,7 @@ runs:
           curl -Ls https://raw.githubusercontent.com/Bouteillepleine/kernel_patches/main/experimental/0001-Support-conditional-vendor-modules-blacklisting-6.1-and-above.patch | patch -p1
         fi        
 
-    - name: 馃敡 Add ADIOS I/O Scheduler
+    - name: 🔧 Add ADIOS I/O Scheduler
       shell: bash
       if: ${{ inputs.enable_adios == true || inputs.enable_adios == 'true' }}
       run: |
@@ -1733,7 +1733,7 @@ runs:
           } >> "$DEFCONFIG"
         fi
 
-        echo "鉁?ADIOS I/O scheduler setup completed"
+        echo "✅ ADIOS I/O scheduler setup completed"
         echo "::endgroup::"
 
     - name: Build Kernel
@@ -1783,18 +1783,18 @@ runs:
         export SOURCE_DATE_EPOCH=$COMMIT_TIMESTAMP
         if [ -n "${{ inputs.build_timestamp }}" ]; then
           export KBUILD_BUILD_TIMESTAMP="${{ inputs.build_timestamp }}"
-          echo "馃搮 Using custom build timestamp: $KBUILD_BUILD_TIMESTAMP"
+          echo "📅 Using custom build timestamp: $KBUILD_BUILD_TIMESTAMP"
         else
           export KBUILD_BUILD_TIMESTAMP="$KERNEL_BUILD_DATE"
-          echo "馃搮 Using current UTC build timestamp: $KBUILD_BUILD_TIMESTAMP"
+          echo "📅 Using current UTC build timestamp: $KBUILD_BUILD_TIMESTAMP"
         fi
         echo "EFFECTIVE_BUILD_TIMESTAMP=$KBUILD_BUILD_TIMESTAMP" >> "$GITHUB_ENV"
         export KBUILD_BUILD_USER="${BUILD_USER:-kernel}"
         export KBUILD_BUILD_HOST="${BUILD_HOST:-kleaf}"
         export KBUILD_BUILD_VERSION=1
-        echo "馃敘 SOURCE_DATE_EPOCH: $SOURCE_DATE_EPOCH"
-        echo "馃懁 Build user: $KBUILD_BUILD_USER"
-        echo "馃枼锔? Build host: $KBUILD_BUILD_HOST"
+        echo "🔢 SOURCE_DATE_EPOCH: $SOURCE_DATE_EPOCH"
+        echo "👤 Build user: $KBUILD_BUILD_USER"
+        echo "🖥️  Build host: $KBUILD_BUILD_HOST"
         
         export CC="ccache clang"
         export CXX="ccache clang++"
@@ -1802,16 +1802,16 @@ runs:
         export HOSTCXX="ccache clang++"
         
         if [ "${{ inputs.clean }}" = "false" ]; then
-          echo "馃殌 ccache-accelerated build"
+          echo "🚀 ccache-accelerated build"
         else
-          echo "馃Ч Clean build mode"
+          echo "🧹 Clean build mode"
         fi
         
         OUT=out
         mkdir -p "$OUT"
         
         echo "============================================"
-        echo "馃攳 Compiler & ccache Verification"
+        echo "🔍 Compiler & ccache Verification"
         echo "============================================"
         echo "PATH: ${PATH:0:200}..."
         echo "which clang: $(which clang)"
@@ -1891,7 +1891,7 @@ runs:
         KCPPFLAGS="$KCPPFLAGS -DCONFIG_OPTIMIZE_INLINING"
         
         echo "============================================"
-        echo "馃敡 Build Configuration"
+        echo "🔧 Build Configuration"
         echo "============================================"
         echo "Device: ${OP_MODEL}"
         echo "Kernel: ${KERNEL_FULL_VER}"
@@ -1911,7 +1911,7 @@ runs:
         echo "============================================"
         
         if [ ! -d "$CCACHE_DIR" ] || [ -z "$(find "$CCACHE_DIR" -type f 2>/dev/null | head -n1)" ]; then
-          echo "馃敟 Priming cache with header preprocessing..."
+          echo "🔥 Priming cache with header preprocessing..."
           make LD="$COMMON_KERNEL_FOLDER/ld-wrapper" HOSTLD="$COMMON_KERNEL_FOLDER/ld-wrapper" -C "$COMMON_KERNEL_FOLDER" O="$OUT" headers_install prepare 2>&1 | head -n 20 || true
           echo ""
         fi
@@ -1954,19 +1954,19 @@ runs:
         IMG_SIZE=$(stat -c%s "$IMG")
         
         echo "============================================"
-        echo "鉁?Build Completed Successfully"
+        echo "✅ Build Completed Successfully"
         echo "============================================"
         echo "Duration: $((BUILD_TIME / 60))m $((BUILD_TIME % 60))s"
         echo "Image: $(numfmt --to=iec-i --suffix=B "$IMG_SIZE")"
         
         echo ""
-        echo "馃搳 ccache Post-Build Statistics"
+        echo "📊 ccache Post-Build Statistics"
         echo "============================================"
         ccache -s
         echo "============================================"
         echo "::endgroup::"
 
-    - name: 馃搳 ccache Post-Build Statistics
+    - name: 📊 ccache Post-Build Statistics
       id: ccache_stats
       if: ${{ success() && (inputs.clean == false || inputs.clean == 'false') }}
       shell: bash
@@ -1998,7 +1998,7 @@ runs:
             mv "${{ env.CCACHE_LOGFILE }}" "$LOG_DIR/$NEW_LOG_NAME"
             echo "CCACHE_LOGFILE=$LOG_DIR/$NEW_LOG_NAME" >> $GITHUB_ENV
           else
-            echo "鈿?ccache log not found, skipping rename."
+            echo "⚠ ccache log not found, skipping rename."
           fi
         fi
         
@@ -2032,7 +2032,7 @@ runs:
         
         echo "::endgroup::"
         
-        echo "## 馃搳 ccache Statistics" >> $GITHUB_STEP_SUMMARY
+        echo "## 📊 ccache Statistics" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
         ccache -s >> $GITHUB_STEP_SUMMARY
@@ -2095,7 +2095,7 @@ runs:
         printf 'image_sha256=%s\n' "$IMG_SHA256" >> "$GITHUB_OUTPUT"
         printf 'build_time=%s\n' "$BUILD_TIME" >> "$GITHUB_OUTPUT"
         
-        echo "鉁?Validation passed:"
+        echo "✅ Validation passed:"
         echo "   - Warnings: $WARNINGS_COUNT"
         echo "   - Image size: $(numfmt --to=iec-i --suffix=B "$IMG_SIZE")"
         echo "   - SHA256: $IMG_SHA256"
@@ -2170,7 +2170,7 @@ runs:
           if unzip -l "$MODULE_PATH" | grep -q 'module.prop'; then
             echo "MODULE_DOWNLOADED=true" >> "$GITHUB_ENV"
             echo "MODULE_SOURCE=CI"       >> "$GITHUB_ENV"
-            echo "鉁?Valid SUSFS module ZIP downloaded"
+            echo "✅ Valid SUSFS module ZIP downloaded"
           else
             echo "::warning::Downloaded ZIP does not contain module.prop"
           fi
@@ -2208,7 +2208,7 @@ runs:
         sed -i 's/do.check_boot_version=.*/do.check_boot_version=1/' anykernel.sh
         
         # BBG efisp/abl whitelist flash control is baked into the AnyKernel3
-        # (Bouteillepleine/AnyKernel3 gki-2.0) 鈥?no build-time anykernel.sh patch needed.
+        # (Bouteillepleine/AnyKernel3 gki-2.0) — no build-time anykernel.sh patch needed.
         
         ZIP_MODEL=$(echo "$OP_MODEL" | sed 's/-[0-9]\+\.[0-9]\+\.[0-9]\+$//')
         if [ "${{ env.OP_SUSFS }}" = true ]; then
@@ -2240,7 +2240,7 @@ runs:
         echo "ZIP_NAME=$ZIP_NAME" >> "$GITHUB_ENV"
         
         echo ""
-        echo "鉁?Kernel ZIP created successfully"
+        echo "✅ Kernel ZIP created successfully"
         echo "   Name: $ZIP_NAME"
         echo "   Size: $(numfmt --to=iec-i --suffix=B "$ZIP_SIZE")"
         echo "   SHA256: $ZIP_SHA256"
@@ -2300,19 +2300,19 @@ runs:
         } | tee summary.txt
         
         # One-line header so the collapsed block is scannable across 100+ devices
-        SUM_HEAD="馃幆 <b>${{ env.OP_MODEL }}</b> 鈥?${{ steps.save_metadata.outputs.kernel_version }}"
-        SUM_HEAD="${SUM_HEAD} 路 鈿ukiSU ${KSUVER:-?}"
-        if [ "${{ env.OP_SUSFS }}" = true ]; then SUM_HEAD="${SUM_HEAD} 路 SUSFS ${SUSVER:-?}"; fi
-        SUM_HEAD="${SUM_HEAD} 路 鈴?${{ steps.collect_stats.outputs.build_time }}s"
+        SUM_HEAD="🎯 <b>${{ env.OP_MODEL }}</b> — ${{ steps.save_metadata.outputs.kernel_version }}"
+        SUM_HEAD="${SUM_HEAD} · ⚡SukiSU ${KSUVER:-?}"
+        if [ "${{ env.OP_SUSFS }}" = true ]; then SUM_HEAD="${SUM_HEAD} · SUSFS ${SUSVER:-?}"; fi
+        SUM_HEAD="${SUM_HEAD} · ⏱ ${{ steps.collect_stats.outputs.build_time }}s"
         if [ "${{ steps.collect_stats.outputs.warnings_count }}" != "0" ]; then
-          SUM_HEAD="${SUM_HEAD} 路 鈿狅笍 ${{ steps.collect_stats.outputs.warnings_count }}"
+          SUM_HEAD="${SUM_HEAD} · ⚠️ ${{ steps.collect_stats.outputs.warnings_count }}"
         fi
 
         {
           echo "<details>"
           echo "<summary>${SUM_HEAD}</summary>"
           echo ""
-          echo "#### 馃幆 Kernel Build Summary"
+          echo "#### 🎯 Kernel Build Summary"
           echo ""
           echo "| Metric | Value |"
           echo "|--------|-------|"
@@ -2341,7 +2341,7 @@ runs:
           fi
           
           echo ""
-          echo "#### 馃敡 OnePlus Features"
+          echo "#### 🔧 OnePlus Features"
           echo ""
           echo "| Feature | Status |"
           echo "|---------|--------|"
@@ -2357,7 +2357,7 @@ runs:
           echo "| **Droidspaces** | ${{ env.OP_DS }} |"
           
           echo ""
-          echo "#### 馃搳 Build Metrics"
+          echo "#### 📊 Build Metrics"
           echo ""
           echo "| Metric | Value |"
           echo "|--------|-------|"
@@ -2408,7 +2408,7 @@ runs:
         compression-level: 0
         retention-days: 90
 
-    - name: 馃摜 Checkout Code
+    - name: 📥 Checkout Code
       uses: actions/checkout@v6
       if: always() && steps.build_kernel_step.conclusion == 'success'
       with:
@@ -2484,7 +2484,7 @@ runs:
 
           # Evict by access time, not mtime: ld.lld never updates a cache
           # entry's mtime when it reuses it, so an mtime-based trim deletes the
-          # entire restored/reused cache on cache-hit builds 鈥?collapsing the
+          # entire restored/reused cache on cache-hit builds — collapsing the
           # saved archive to a few hundred bytes. atime tracks reuse and keeps
           # the live working set.
           find "$LDCACHE_DIR" -type f -amin +360 -delete || true
@@ -2510,14 +2510,14 @@ runs:
         working_dir: "./main-source"
         compression_level: 6
 
-    - name: 馃Ч Cleanup on failure
+    - name: 🧹 Cleanup on failure
       if: ${{ failure() }}
       shell: bash
       run: |
         set -euo pipefail
         echo "::group::Cleanup on failure"
 
-        echo "Build failed 鈥?cleaning up large temporary artifacts to free runner disk space"
+        echo "Build failed — cleaning up large temporary artifacts to free runner disk space"
 
         if [ -d "${COMMON_KERNEL_FOLDER:-}/out" ]; then
           echo "Removing build output: $COMMON_KERNEL_FOLDER/out"
