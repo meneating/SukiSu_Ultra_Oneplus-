@@ -1043,22 +1043,37 @@ fi
 fix_sukisu_linker_symbols() {
   echo "Applying SukiSU linker-symbol compatibility cleanup..."
 
+  ensure_kbuild_obj() {
+    local kbuild="$1"
+    local obj="$2"
+    local guard="${3:-}"
+    local base
+    base="$(dirname "$kbuild")"
+
+    if [ -n "$guard" ] && [ ! -f "$base/$guard" ]; then
+      return 0
+    fi
+    if ! grep -qF "$obj" "$kbuild"; then
+      echo "kernelsu-objs += $obj" >> "$kbuild"
+      echo "  (restored $obj in $kbuild)"
+    fi
+  }
+
   for kbuild in \
 "$KSU_FOLDER/kernel/Kbuild" \
 "$COMMON_KERNEL_FOLDER/drivers/kernelsu/Kbuild"; do
 if [ -f "$kbuild" ]; then
-  if [ -f "$(dirname "$kbuild")/infra/symbol_resolver.c" ] && ! grep -q 'infra/symbol_resolver\.o' "$kbuild"; then
-    echo 'kernelsu-objs += infra/symbol_resolver.o' >> "$kbuild"
-  fi
-  if [ -f "$(dirname "$kbuild")/hook/arm64/patch_memory.c" ] && ! grep -q 'hook/arm64/patch_memory\.o' "$kbuild"; then
-    echo 'kernelsu-objs += hook/arm64/patch_memory.o' >> "$kbuild"
-  fi
-  # Keep manager install path: SUSFS enable-patch may drop this object; without it
-  # setresuid/sys_enter hooks never register and the manager UI stays 未安装.
-  if [ -f "$(dirname "$kbuild")/hook/syscall_hook_manager.c" ] && ! grep -q 'hook/syscall_hook_manager\.o' "$kbuild"; then
-    echo 'kernelsu-objs += hook/syscall_hook_manager.o' >> "$kbuild"
-    echo "  (restored hook/syscall_hook_manager.o in $kbuild)"
-  fi
+  ensure_kbuild_obj "$kbuild" "infra/symbol_resolver.o" "infra/symbol_resolver.c"
+  ensure_kbuild_obj "$kbuild" "hook/syscall_event_bridge.o" "hook/syscall_event_bridge.c"
+  # Keep manager install path as a complete object set. syscall_hook_manager.o
+  # depends on tp_marker.o plus arch syscall_hook.o; restoring only the manager
+  # object links with undefined symbols late in vmlinux.
+  ensure_kbuild_obj "$kbuild" "hook/syscall_hook_manager.o" "hook/syscall_hook_manager.c"
+  ensure_kbuild_obj "$kbuild" "hook/tp_marker.o" "hook/tp_marker.c"
+  ensure_kbuild_obj "$kbuild" "hook/arm64/patch_memory.o" "hook/arm64/patch_memory.c"
+  ensure_kbuild_obj "$kbuild" "hook/arm64/syscall_hook.o" "hook/arm64/syscall_hook.c"
+  ensure_kbuild_obj "$kbuild" "hook/x86_64/patch_memory.o" "hook/x86_64/patch_memory.c"
+  ensure_kbuild_obj "$kbuild" "hook/x86_64/syscall_hook.o" "hook/x86_64/syscall_hook.c"
 fi
   done
 
@@ -1609,11 +1624,18 @@ fi
   echo "✅ ksu_syscall_hook_manager_init() call present in drivers/kernelsu/core/init.c"
 
   if [ -f drivers/kernelsu/Kbuild ] && [ -f drivers/kernelsu/hook/syscall_hook_manager.c ]; then
-    if ! grep -q 'hook/syscall_hook_manager\.o' drivers/kernelsu/Kbuild; then
-      echo "::error::hook/syscall_hook_manager.o missing from drivers/kernelsu/Kbuild"
-      exit 1
-    fi
-    echo "✅ hook/syscall_hook_manager.o present in drivers/kernelsu/Kbuild"
+    for _obj in \
+      hook/syscall_event_bridge.o \
+      hook/syscall_hook_manager.o \
+      hook/tp_marker.o \
+      hook/arm64/syscall_hook.o; do
+      _src="${_obj%.o}.c"
+      if [ -f "drivers/kernelsu/$_src" ] && ! grep -qF "$_obj" drivers/kernelsu/Kbuild; then
+        echo "::error::$_obj missing from drivers/kernelsu/Kbuild"
+        exit 1
+      fi
+      [ -f "drivers/kernelsu/$_src" ] && echo "✅ $_obj present in drivers/kernelsu/Kbuild"
+    done
   fi
 fi
 
