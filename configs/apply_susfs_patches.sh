@@ -969,6 +969,10 @@ fix_sukisu_syscall_event_bridge() {
   echo "Fixing syscall_event_bridge sucompat API in: $target"
 
   grep -q '#include <linux/jump_label.h>' "$target" || sed -i '1i#include <linux/jump_label.h>' "$target"
+  grep -q '#include "runtime/ksud.h"' "$target" || sed -i '/#include "feature\/sucompat.h"/a #include "runtime/ksud.h"' "$target"
+  grep -q '#include "sulog/event.h"' "$target" || sed -i '/#include "feature\/sucompat.h"/a #include "sulog/event.h"' "$target"
+  grep -q '#include "hook/setuid_hook.h"' "$target" || sed -i '/#include "feature\/sucompat.h"/a #include "hook/setuid_hook.h"' "$target"
+  grep -q '#include "feature/adb_root.h"' "$target" || sed -i '/#include "feature\/sucompat.h"/a #include "feature/adb_root.h"' "$target"
 
   sed -i \
 -e 's/if[[:space:]]*([[:space:]]*!ksu_su_compat_enabled[[:space:]]*)/if (!static_key_enabled(\&ksu_su_compat_enabled))/g' \
@@ -976,6 +980,12 @@ fix_sukisu_syscall_event_bridge() {
 "$target" || true
 
   perl -0pi -e 's/ksu_handle_execve_sucompat\(([^,]+),\s*orig_nr,\s*\(struct\s+pt_regs\s*\*\)\s*regs\)/ksu_handle_execve_sucompat($1, orig_nr, regs)/g' "$target" || true
+
+  local adb_root_h="$base/feature/adb_root.h"
+  if [ -f "$adb_root_h" ] && grep -qE 'ksu_adb_root_handle_execve[[:space:]]*\([[:space:]]*const[[:space:]]+char[[:space:]]*\*filename' "$adb_root_h"; then
+    echo "  adb_root: migrating bridge call to filename/envp signature"
+    perl -0pi -e 's/ret\s*=\s*ksu_adb_root_handle_execve\s*\(\s*\(struct\s+pt_regs\s*\*\)\s*regs\s*\)\s*;/ret = ksu_adb_root_handle_execve((const char *)*filename_user, (void __user ***)\&PT_REGS_PARM3(regs));/g' "$target" || true
+  fi
 
   # SUSFS v2.2.0: the enable patch changes the setuid handler definition from the old
   # 2-arg  ksu_handle_setresuid(old_uid, new_uid)
